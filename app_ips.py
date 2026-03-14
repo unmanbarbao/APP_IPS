@@ -53,14 +53,13 @@ class IPSApplication:
             regimes = ['SUBSIDIADO', 'CONTRIBUTIVO']
             subdirs = ['FACTURAS', 'SOPORTES', 'EMPAQUETADO']
             
-            # Obtener el directorio base
+            # Obtener el directorio base (carpeta del .exe o del script)
             if getattr(sys, 'frozen', False):
-                # Si estamos ejecutando como .exe
                 base_dir = os.path.dirname(sys.executable)
             else:
-                # Si estamos ejecutando como script
                 base_dir = os.path.dirname(os.path.abspath(__file__))
-            
+            self.base_dir = base_dir
+
             # Crear estructura para cada régimen
             for regime in regimes:
                 regime_path = os.path.join(base_dir, regime)
@@ -93,8 +92,9 @@ class IPSApplication:
     def load_config(self):
         """Cargar configuración desde archivo JSON"""
         try:
-            if os.path.exists('config.json'):
-                with open('config.json', 'r') as f:
+            config_path = os.path.join(getattr(self, 'base_dir', '.'), 'config.json')
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
                     config = json.load(f)
                     self.nit = config.get('nit', '')
                     self.contract_number = config.get('contract_number', '')
@@ -110,7 +110,8 @@ class IPSApplication:
                 'contract_number': contract,
                 'prefix': prefix
             }
-            with open('config.json', 'w') as f:
+            config_path = os.path.join(getattr(self, 'base_dir', '.'), 'config.json')
+            with open(config_path, 'w') as f:
                 json.dump(config, f, indent=4)
             return True
         except Exception as e:
@@ -623,8 +624,8 @@ class IPSApplication:
                             with open(xml_path, 'r', encoding='utf-8') as file:
                                 content = file.read()
                             
-                            # Buscar el número de contrato actual
-                            pattern = r'<Value>([^<]+)</Value>'
+                            # Buscar solo el Value asociado a NUMERO_CONTRATO (mismo criterio que verify_contract_number)
+                            pattern = r'<Name>NUMERO_CONTRATO</Name>\s*<Value>([^<]+)</Value>'
                             match = re.search(pattern, content)
                             
                             if match:
@@ -632,8 +633,18 @@ class IPSApplication:
                                 self.log_to_console(f"\nProcesando {folder}:")
                                 self.log_to_console(f"- Número de contrato actual: {current_contract}")
                                 
-                                # Reemplazar el número de contrato
-                                new_content = re.sub(pattern, f'<Value>{self.contract_number}</Value>', content)
+                                # Usar formato normalizado (XXX.AAAA) al escribir
+                                contract_to_write = (self.contract_number or '').strip()
+                                if contract_to_write and '.' not in contract_to_write and len(contract_to_write) >= 7:
+                                    contract_to_write = f"{contract_to_write[:3]}.{contract_to_write[3:]}"
+                                
+                                # Reemplazar solo el número de contrato (el Value que sigue a NUMERO_CONTRATO)
+                                new_content = re.sub(
+                                    pattern,
+                                    f'<Name>NUMERO_CONTRATO</Name>\n  <Value>{contract_to_write}</Value>',
+                                    content,
+                                    count=1
+                                )
                                 
                                 # Guardar el archivo modificado
                                 with open(xml_path, 'w', encoding='utf-8') as file:
@@ -674,9 +685,27 @@ class IPSApplication:
             self.log_to_console(f"✗ {error_msg}")
             messagebox.showerror("Error", error_msg)
 
+    def _normalize_cuv_extension(self, folder_path, folder_name):
+        """Si hay archivos con CUV en el nombre y extensión .txt, renombrarlos a .json."""
+        for f in os.listdir(folder_path):
+            if f.endswith('.txt') and 'CUV' in f.upper():
+                base = f[:-4]
+                json_name = base + '.json'
+                json_path = os.path.join(folder_path, json_name)
+                if not os.path.exists(json_path):
+                    old_path = os.path.join(folder_path, f)
+                    try:
+                        os.rename(old_path, json_path)
+                        self.log_to_console(f"  {folder_name}: renombrado {f} → {json_name}")
+                    except Exception as e:
+                        self.log_to_console(f"  {folder_name}: no se pudo renombrar {f}: {e}")
+
     def verify_folder(self, folder_path, folder_name):
         """Verificar una carpeta de factura individual"""
         results = []
+
+        # Normalizar extensión de archivos CUV (.txt → .json) antes de verificar
+        self._normalize_cuv_extension(folder_path, folder_name)
         
         # Extraer la parte numérica del nombre de la carpeta
         numeric_part = ''.join(filter(str.isdigit, folder_name))
@@ -753,22 +782,28 @@ class IPSApplication:
             match = re.search(pattern, content)
             
             if match:
-                xml_contract = match.group(1).strip()
+                xml_contract_raw = match.group(1).strip()
                 contract_found = True
             
             if not contract_found:
                 return 'No se encontró el número de contrato en el archivo XML', None
             
-            # Normalizar el número de contrato encontrado
-            if '.' not in xml_contract:
+            # El valor en el archivo debe tener formato XXX.AAAA (con punto)
+            if not re.match(r'^\d{3}\.\d{4}$', xml_contract_raw):
+                return f'El número de contrato en el archivo debe tener formato XXX.AAAA (ej. 334.2026); valor actual: {xml_contract_raw}', None
+            
+            # Normalizar para comparar (por si en el futuro se relaja el formato)
+            xml_contract = xml_contract_raw
+            if '.' not in xml_contract and len(xml_contract) >= 7:
                 xml_contract = f"{xml_contract[:3]}.{xml_contract[3:]}"
             
-            # Validar el formato del número de contrato
-            if not re.match(r'^\d{3}\.2025$', xml_contract):
-                return f'El número de contrato encontrado ({xml_contract}) no tiene el formato correcto (XXX.2025)', None
+            # Normalizar el número configurado para comparar (p. ej. 3342026 → 334.2026)
+            config_contract = (self.contract_number or '').strip()
+            if config_contract and '.' not in config_contract and len(config_contract) >= 7:
+                config_contract = f"{config_contract[:3]}.{config_contract[3:]}"
             
             # Comparar con el número de contrato configurado
-            if xml_contract != self.contract_number:
+            if xml_contract != config_contract:
                 return f'El número de contrato en el XML ({xml_contract}) no coincide con el configurado ({self.contract_number})', None
             
             return None, None

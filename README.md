@@ -50,18 +50,43 @@ APP_IPS/
 ## Requisitos
 
 - Python 3.x
-- tkinter (incluido en la instalación estándar de Python)
-- Sistema operativo: Windows 10 o superior
+- tkinter (interfaz gráfica; en Windows suele venir con Python; en Linux puede requerir instalar el paquete por separado)
+- Sistema operativo: Windows 10 o superior, o Linux
 
 ## Instalación
 
-1. Clonar o descargar el repositorio
-2. Asegurarse de tener Python 3.x instalado
-3. No se requieren dependencias adicionales
+1. Clonar o descargar el repositorio.
+2. Asegurarse de tener Python 3.x instalado.
+
+### En Linux (Ubuntu/Debian)
+
+Instalar Python 3 y tkinter:
+
+```bash
+sudo apt update
+sudo apt install python3 python3-tk
+```
+
+En Fedora:
+
+```bash
+sudo dnf install python3 python3-tkinter
+```
+
+### En Windows
+
+No se requieren dependencias adicionales; tkinter suele estar incluido con Python.
 
 ## Uso
 
-1. Ejecutar el archivo principal:
+1. Ejecutar el archivo principal.
+
+   En Linux:
+   ```bash
+   python3 app_ips.py
+   ```
+
+   En Windows:
    ```bash
    python app_ips.py
    ```
@@ -76,6 +101,30 @@ APP_IPS/
    - Visualización de estructura de carpetas
    - Modificación de configuración
    - Consola integrada para mensajes del sistema
+
+## Compilación para Windows (ejecutable .exe)
+
+Para generar un ejecutable `.exe` que se pueda usar en Windows sin instalar Python:
+
+1. **En un equipo con Windows**, instalar Python 3.x (si no está instalado).
+
+2. Instalar PyInstaller:
+   ```bash
+   pip install pyinstaller
+   ```
+
+3. En la carpeta del proyecto, ejecutar:
+   ```bash
+   pyinstaller app_ips.spec
+   ```
+
+4. El ejecutable se generará en la carpeta `dist/` con el nombre `IPS_ProcesadorFacturas.exe`.
+
+5. **Distribución:** Copiar el `.exe` a la carpeta donde quieras usarlo. Al ejecutarlo por primera vez se crearán ahí las carpetas `SUBSIDIADO` y `CONTRIBUTIVO`, y el archivo `config.json` se guardará en la misma carpeta que el ejecutable.
+
+**Nota:** La compilación debe hacerse en Windows. PyInstaller no permite generar un .exe desde Linux o macOS.
+
+**Opcional:** Para usar un icono propio en el ejecutable, edita `app_ips.spec` y en la línea `icon=None` indica la ruta a un archivo `.ico`, por ejemplo: `icon='icono.ico'`.
 
 ## Puntos de Restauración
 

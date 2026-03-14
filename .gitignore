@@ -1,0 +1,22 @@
+# PyInstaller
+build/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.so
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+CONTRIBUTIVO/
+SUBSIDIADO/
