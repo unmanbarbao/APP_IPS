@@ -35,6 +35,7 @@ class IPSApplication:
         # Variables de configuración
         self.nit = ""
         self.contract_number = ""
+        self.cucon = ""
         self.prefix = ""
         
         # Crear estructura de directorios
@@ -98,16 +99,18 @@ class IPSApplication:
                     config = json.load(f)
                     self.nit = config.get('nit', '')
                     self.contract_number = config.get('contract_number', '')
+                    self.cucon = config.get('cucon', '')
                     self.prefix = config.get('prefix', '')
         except Exception as e:
             print(f"Error al cargar configuración: {str(e)}")
     
-    def save_config(self, nit, contract, prefix):
+    def save_config(self, nit, contract, cucon, prefix):
         """Guardar configuración en archivo JSON"""
         try:
             config = {
                 'nit': nit,
                 'contract_number': contract,
+                'cucon': cucon,
                 'prefix': prefix
             }
             config_path = os.path.join(getattr(self, 'base_dir', '.'), 'config.json')
@@ -123,9 +126,9 @@ class IPSApplication:
         config_window = tk.Toplevel(self.root)
         config_window.title("Configuración")
         
-        # Establecer tamaño mínimo y máximo
-        config_window.minsize(600, 400)
-        config_window.maxsize(800, 600)
+        # Establecer tamaño mínimo y máximo (más ancho por el código CUCON)
+        config_window.minsize(700, 450)
+        config_window.maxsize(1000, 650)
         
         # Configurar el grid de la ventana principal
         config_window.grid_columnconfigure(0, weight=1)
@@ -141,6 +144,7 @@ class IPSApplication:
         # Variables
         nit_var = tk.StringVar(value=self.nit)
         contract_var = tk.StringVar(value=self.contract_number)
+        cucon_var = tk.StringVar(value=self.cucon)
         prefix_var = tk.StringVar(value=self.prefix)
         
         # Título
@@ -157,18 +161,23 @@ class IPSApplication:
         contract_entry = ttk.Entry(frame, textvariable=contract_var, width=40, font=("Arial", 10))
         contract_entry.grid(row=2, column=1, pady=15, padx=10, sticky="ew")
         
-        ttk.Label(frame, text="Prefijo de Facturación:", font=("Arial", 10)).grid(row=3, column=0, sticky="w", pady=15)
+        ttk.Label(frame, text="Código CUCON:", font=("Arial", 10)).grid(row=3, column=0, sticky="w", pady=15)
+        cucon_entry = ttk.Entry(frame, textvariable=cucon_var, width=70, font=("Arial", 10))
+        cucon_entry.grid(row=3, column=1, pady=15, padx=10, sticky="ew")
+        
+        ttk.Label(frame, text="Prefijo de Facturación:", font=("Arial", 10)).grid(row=4, column=0, sticky="w", pady=15)
         prefix_entry = ttk.Entry(frame, textvariable=prefix_var, width=40, font=("Arial", 10))
-        prefix_entry.grid(row=3, column=1, pady=15, padx=10, sticky="ew")
+        prefix_entry.grid(row=4, column=1, pady=15, padx=10, sticky="ew")
         
         # Frame para botones
         button_frame = ttk.Frame(frame)
-        button_frame.grid(row=4, column=0, columnspan=2, pady=30)
+        button_frame.grid(row=5, column=0, columnspan=2, pady=30)
         
         def on_save():
-            if self.save_config(nit_var.get(), contract_var.get(), prefix_var.get()):
+            if self.save_config(nit_var.get(), contract_var.get(), cucon_var.get(), prefix_var.get()):
                 self.nit = nit_var.get()
                 self.contract_number = contract_var.get()
+                self.cucon = cucon_var.get()
                 self.prefix = prefix_var.get()
                 config_window.destroy()
                 self.show_main_menu()
@@ -229,6 +238,8 @@ class IPSApplication:
         ttk.Label(config_info, text=f"NIT: {self.nit}", 
                  font=("Arial", 9)).pack(anchor="w", pady=2)
         ttk.Label(config_info, text=f"Contrato: {self.contract_number}", 
+                 font=("Arial", 9)).pack(anchor="w", pady=2)
+        ttk.Label(config_info, text=f"CUCON: {self.cucon}", 
                  font=("Arial", 9)).pack(anchor="w", pady=2)
         ttk.Label(config_info, text=f"Prefijo: {self.prefix}", 
                  font=("Arial", 9)).pack(anchor="w", pady=2)
@@ -303,6 +314,8 @@ class IPSApplication:
         ttk.Label(config_info, text=f"NIT: {self.nit}", 
                  font=("Arial", 9)).pack(anchor="w", pady=2)
         ttk.Label(config_info, text=f"Contrato: {self.contract_number}", 
+                 font=("Arial", 9)).pack(anchor="w", pady=2)
+        ttk.Label(config_info, text=f"CUCON: {self.cucon}", 
                  font=("Arial", 9)).pack(anchor="w", pady=2)
         ttk.Label(config_info, text=f"Prefijo: {self.prefix}", 
                  font=("Arial", 9)).pack(anchor="w", pady=2)
@@ -508,7 +521,7 @@ class IPSApplication:
             tree.heading("json", text="JSON")
             tree.heading("xml", text="XML")
             tree.heading("cuv", text="CUV")
-            tree.heading("contrato", text="Contrato")
+            tree.heading("contrato", text="CUCON")
             tree.heading("mensaje", text="Mensaje")
             
             # Configurar anchos de columna
@@ -540,14 +553,15 @@ class IPSApplication:
                 # Procesar resultados
                 for result in results:
                     if result['tipo'] == 'ERROR':
+                        msg_lower = result['mensaje'].lower()
                         if 'JSON principal' in result['mensaje']:
                             json_status = "✗"
-                        elif 'XML' in result['mensaje']:
+                        elif 'cucon' in msg_lower or 'número de contrato' in msg_lower:
+                            contract_status = "✗"
+                        elif 'Falta el archivo XML' in result['mensaje']:
                             xml_status = "✗"
                         elif 'CUV' in result['mensaje']:
                             cuv_status = "✗"
-                        elif 'número de contrato' in result['mensaje'].lower():
-                            contract_status = "✗"
                         message = result['mensaje']
                 
                 # Insertar en el Treeview
@@ -557,8 +571,8 @@ class IPSApplication:
             button_frame = ttk.Frame(frame)
             button_frame.grid(row=2, column=0, pady=20)
             
-            # Botón para corregir contratos
-            ttk.Button(button_frame, text="Corregir Números de Contrato", 
+            # Botón para corregir CUCON en los XML
+            ttk.Button(button_frame, text="Corregir Códigos CUCON", 
                       command=lambda: self.correct_contract_numbers(regime, tree),
                       style='Main.TButton').pack(side="left", padx=5)
             
@@ -586,7 +600,7 @@ class IPSApplication:
             messagebox.showerror("Error", f"Error durante la verificación: {str(e)}")
 
     def correct_contract_numbers(self, regime, tree):
-        """Corregir los números de contrato en los archivos XML"""
+        """Corregir el código CUCON (NUMERO_CONTRATO) en los archivos XML"""
         try:
             # Obtener la ruta de la carpeta de facturas
             facturas_path = self.directories[regime]['FACTURAS']
@@ -596,19 +610,20 @@ class IPSApplication:
             errors = 0
             skipped = 0
             
-            self.log_to_console(f"\nIniciando corrección de números de contrato para {regime}...")
-            self.log_to_console(f"Número de contrato configurado: {self.contract_number}")
+            self.log_to_console(f"\nIniciando corrección de códigos CUCON para {regime}...")
+            self.log_to_console(f"CUCON configurado: {self.cucon}")
             
             # Recorrer todos los items en el Treeview
             for item in tree.get_children():
                 values = tree.item(item)['values']
                 folder = values[0]
-                contract_status = values[4]  # Estado del contrato
+                contract_status = values[4]  # Estado del CUCON
                 message = values[5]  # Mensaje
                 
                 # Verificar si necesita corrección (ya sea por estado o mensaje)
                 needs_correction = (contract_status == "✗" or 
                                   "número de contrato" in message.lower() or 
+                                  "cucon" in message.lower() or
                                   "contrato" in message.lower())
                 
                 if needs_correction:
@@ -625,23 +640,24 @@ class IPSApplication:
                                 content = file.read()
                             
                             # Buscar solo el Value asociado a NUMERO_CONTRATO (mismo criterio que verify_contract_number)
-                            pattern = r'<Name>NUMERO_CONTRATO</Name>\s*<Value>([^<]+)</Value>'
+                            pattern = r'<Name>NUMERO_CONTRATO</Name>\s*<Value>([^<]*)</Value>'
                             match = re.search(pattern, content)
                             
                             if match:
-                                current_contract = match.group(1).strip()
+                                current_cucon = match.group(1).strip()
                                 self.log_to_console(f"\nProcesando {folder}:")
-                                self.log_to_console(f"- Número de contrato actual: {current_contract}")
+                                self.log_to_console(f"- CUCON actual: {current_cucon}")
                                 
-                                # Usar formato normalizado (XXX.AAAA) al escribir
-                                contract_to_write = (self.contract_number or '').strip()
-                                if contract_to_write and '.' not in contract_to_write and len(contract_to_write) >= 7:
-                                    contract_to_write = f"{contract_to_write[:3]}.{contract_to_write[3:]}"
+                                # Escribir el CUCON configurado en NUMERO_CONTRATO del XML
+                                cucon_to_write = (self.cucon or '').strip()
+                                if not cucon_to_write:
+                                    self.log_to_console(f"✗ No hay código CUCON configurado; se omite {folder}")
+                                    skipped += 1
+                                    continue
                                 
-                                # Reemplazar solo el número de contrato (el Value que sigue a NUMERO_CONTRATO)
                                 new_content = re.sub(
                                     pattern,
-                                    f'<Name>NUMERO_CONTRATO</Name>\n  <Value>{contract_to_write}</Value>',
+                                    f'<Name>NUMERO_CONTRATO</Name>\n  <Value>{cucon_to_write}</Value>',
                                     content,
                                     count=1
                                 )
@@ -652,15 +668,15 @@ class IPSApplication:
                                 
                                 # Actualizar el Treeview con todos los valores
                                 current_values = list(tree.item(item)['values'])
-                                current_values[4] = "✓"  # Actualizar estado del contrato
+                                current_values[4] = "✓"  # Actualizar estado del CUCON
                                 current_values[5] = "OK"  # Actualizar mensaje
                                 tree.item(item, values=current_values)
                                 
                                 corrected += 1
-                                self.log_to_console(f"✓ Contrato corregido en {folder}")
+                                self.log_to_console(f"✓ CUCON corregido en {folder}")
                             else:
                                 skipped += 1
-                                self.log_to_console(f"✗ No se encontró el número de contrato en {folder}")
+                                self.log_to_console(f"✗ No se encontró NUMERO_CONTRATO (CUCON) en {folder}")
                             
                         except Exception as e:
                             errors += 1
@@ -678,7 +694,7 @@ class IPSApplication:
             message += f"- Corregidos: {corrected}\n"
             message += f"- Omitidos: {skipped}\n"
             message += f"- Errores: {errors}"
-            messagebox.showinfo("Corrección de Contratos", message)
+            messagebox.showinfo("Corrección de CUCON", message)
             
         except Exception as e:
             error_msg = f"Error durante la corrección: {str(e)}"
@@ -767,49 +783,35 @@ class IPSApplication:
         return results
 
     def verify_contract_number(self, xml_path):
-        """Verificar el número de contrato en el archivo XML"""
+        """Verificar el código CUCON (campo NUMERO_CONTRATO) en el archivo XML"""
         try:
             # Leer el archivo como texto
             with open(xml_path, 'r', encoding='utf-8') as file:
                 content = file.read()
             
-            # Buscar el patrón Name/Value para el número de contrato
-            contract_found = False
-            xml_contract = None
-            
             # Buscar el patrón <Name>NUMERO_CONTRATO</Name> seguido de <Value>
-            pattern = r'<Name>NUMERO_CONTRATO</Name>\s*<Value>([^<]+)</Value>'
+            pattern = r'<Name>NUMERO_CONTRATO</Name>\s*<Value>([^<]*)</Value>'
             match = re.search(pattern, content)
             
-            if match:
-                xml_contract_raw = match.group(1).strip()
-                contract_found = True
+            if not match:
+                return 'No se encontró el código CUCON (NUMERO_CONTRATO) en el archivo XML', None
             
-            if not contract_found:
-                return 'No se encontró el número de contrato en el archivo XML', None
+            xml_cucon = match.group(1).strip()
+            if not xml_cucon:
+                return 'El código CUCON en el archivo XML está vacío', None
             
-            # El valor en el archivo debe tener formato XXX.AAAA (con punto)
-            if not re.match(r'^\d{3}\.\d{4}$', xml_contract_raw):
-                return f'El número de contrato en el archivo debe tener formato XXX.AAAA (ej. 334.2026); valor actual: {xml_contract_raw}', None
+            config_cucon = (self.cucon or '').strip()
+            if not config_cucon:
+                return 'No hay código CUCON configurado en la aplicación', None
             
-            # Normalizar para comparar (por si en el futuro se relaja el formato)
-            xml_contract = xml_contract_raw
-            if '.' not in xml_contract and len(xml_contract) >= 7:
-                xml_contract = f"{xml_contract[:3]}.{xml_contract[3:]}"
-            
-            # Normalizar el número configurado para comparar (p. ej. 3342026 → 334.2026)
-            config_contract = (self.contract_number or '').strip()
-            if config_contract and '.' not in config_contract and len(config_contract) >= 7:
-                config_contract = f"{config_contract[:3]}.{config_contract[3:]}"
-            
-            # Comparar con el número de contrato configurado
-            if xml_contract != config_contract:
-                return f'El número de contrato en el XML ({xml_contract}) no coincide con el configurado ({self.contract_number})', None
+            # La validación usa únicamente el código CUCON alfanumérico
+            if xml_cucon != config_cucon:
+                return f'El CUCON en el XML ({xml_cucon}) no coincide con el configurado ({config_cucon})', None
             
             return None, None
             
         except Exception as e:
-            return f'Error al verificar el número de contrato: {str(e)}', None
+            return f'Error al verificar el código CUCON: {str(e)}', None
 
     def verify_supports(self, regime):
         """Verificar soportes del régimen seleccionado"""
